@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::{collections::HashMap, env, fs};
+use std::{collections::HashMap, fs};
 
 use crate::error::Result;
 
@@ -26,17 +26,9 @@ impl ConfigKeys {
 }
 
 impl Config {
-    pub(crate) fn load(path: &str) -> Result<Config> {
+    pub fn load(path: &str) -> Result<Config> {
         let content = fs::read_to_string(path)?;
         toml::from_str(&content).map_err(Into::into)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Config {
-        let file_path =
-            env::var("MY_PUBLIC_IP_CONFIG").expect("the MY_PUBLIC_IP_CONFIG var in env is missing");
-        Config::load(&file_path).expect("could not init default config")
     }
 }
 

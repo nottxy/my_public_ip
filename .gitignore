@@ -4,3 +4,7 @@ Cargo.lock
 *.iml
 my_public_ip.toml
 db
+config.toml.example
+log4rs.yaml.example
+*.pid
+log

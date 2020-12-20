@@ -1,5 +1,3 @@
-use std::env;
-
 use my_public_ip_lib::{PublicIp, Reader, Writer};
 
 use crate::error::Result;
@@ -20,6 +18,11 @@ impl Store {
             writer_tree,
             reader_tree,
         })
+    }
+
+    pub fn open(db_dir: &str) -> Result<Store> {
+        let db = sled::open(&db_dir)?;
+        Store::new(db)
     }
 
     pub fn get_writer(&self, name: &str) -> Result<Option<Writer>> {
@@ -79,15 +82,5 @@ impl Store {
 
     pub fn flush(&self) -> Result<()> {
         self.db.flush().map(|_| ()).map_err(Into::into)
-    }
-}
-
-impl Default for Store {
-    fn default() -> Store {
-        let file_path =
-            env::var("MY_PUBLIC_IP_DB").expect("the MY_PUBLIC_IP_DB var in env is missing");
-        let db = sled::open(&file_path).expect("could not open MY_PUBLIC_IP_DB");
-
-        Store::new(db).expect("could not create store")
     }
 }

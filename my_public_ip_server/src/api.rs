@@ -2,7 +2,7 @@ use actix_web::{error::BlockingError, get, put, web, HttpRequest, HttpResponse};
 
 use my_public_ip_lib::{Reader, Writer};
 
-use crate::{Config, ConfigKeys, Error, Result, Store};
+use crate::{ConfigKeys, Error, Result, Store};
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -10,12 +10,9 @@ pub struct ApiState {
     store: Store,
 }
 
-impl Default for ApiState {
-    fn default() -> ApiState {
-        ApiState {
-            config: Config::default().into(),
-            store: Store::default(),
-        }
+impl ApiState {
+    pub fn new(config: ConfigKeys, store: Store) -> ApiState {
+        ApiState { config, store }
     }
 }
 
