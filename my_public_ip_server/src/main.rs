@@ -1,8 +1,9 @@
-use actix_web::{App, HttpServer};
+use actix_web::{middleware, App, HttpServer};
 use log::debug;
 use structopt::StructOpt;
 
 use my_public_ip_server::{api, Config, Store};
+use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslFiletype, SslMethod, SslVerifyMode};
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -16,6 +17,10 @@ struct Opt {
     db_dir: String,
     #[structopt(long, default_value = "8998")]
     port: u16,
+    #[structopt(long)]
+    cert_file: String,
+    #[structopt(long)]
+    key_file: String,
 }
 
 #[actix_web::main]
@@ -36,13 +41,16 @@ async fn main() -> std::io::Result<()> {
 
     let addr = format!("0.0.0.0:{}", opt.port);
 
+    let ssl_builder = build_ssl_builder(&opt.cert_file, &opt.key_file);
+
     HttpServer::new(move || {
         App::new()
+            .wrap(middleware::Logger::default())
             .data(api_state.clone())
             .service(api::list_ips)
             .service(api::update_ip)
     })
-    .bind(addr)?
+    .bind_openssl(addr, ssl_builder)?
     .run()
     .await
 }
@@ -60,4 +68,17 @@ fn write_pid_file(pid_file: &str) -> std::io::Result<()> {
         .open(pid_file)?;
 
     file.write_all(pid.to_string().as_ref())
+}
+
+fn build_ssl_builder(cert_file: &str, key_file: &str) -> SslAcceptorBuilder {
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())
+        .expect("mozilla_intermediate create ssl builder error");
+    builder
+        .set_private_key_file(key_file, SslFiletype::PEM)
+        .expect("set_private_key_file error");
+    builder
+        .set_certificate_chain_file(cert_file)
+        .expect("set_certificate_chain_file error");
+    builder.set_verify(SslVerifyMode::NONE);
+    builder
 }

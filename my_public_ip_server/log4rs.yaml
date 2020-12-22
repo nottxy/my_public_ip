@@ -6,7 +6,7 @@ appenders:
     kind: file
     path: "log/requests.log"
 root:
-  level: debug
+  level: info
   appenders:
     - file
     - stdout
