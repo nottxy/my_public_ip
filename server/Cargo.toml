@@ -1,6 +1,6 @@
 [package]
 name = "my_public_ip_server"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Bob <nottxy@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -22,5 +22,4 @@ log4rs = "1.0"
 openssl="0.10"
 
 [dependencies.my_public_ip_lib]
-version = "~0.1.0"
-path = "../my_public_ip_lib"
+version = "0.4.0"

@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "my_public_ip_client",
-    "my_public_ip_lib",
-    "my_public_ip_server",
+    "client",
+    "lib",
+    "server",
 ]

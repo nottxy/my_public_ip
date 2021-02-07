@@ -1,3 +1,4 @@
+use log::{error, info};
 use reqwest::Client;
 use structopt::StructOpt;
 use time::{OffsetDateTime, UtcOffset};
@@ -7,23 +8,30 @@ use my_public_ip_lib::{PublicIp, Writer};
 #[derive(Debug, StructOpt)]
 enum Command {
     List,
-    Update,
+    Update {
+        #[structopt(short, long)]
+        forever: bool,
+        #[structopt(short, long)]
+        interval: Option<i32>,
+    },
 }
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "my_public_ip_client", about = "My public ip client")]
 struct Opt {
-    #[structopt(subcommand)]
-    cmd: Command,
     #[structopt(short, long)]
     api_key: String,
+    #[structopt(short, long)]
     url: String,
+    #[structopt(subcommand)]
+    cmd: Command,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
     let opt = Opt::from_args();
-    println!("{:?}", opt);
 
     let clinet = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -42,7 +50,13 @@ impl Command {
     ) -> Result<(), Box<dyn std::error::Error>> {
         match self {
             Command::List => Command::list(&clinet, api_key, url).await,
-            Command::Update => Command::update(&clinet, api_key, url).await,
+            Command::Update { forever, interval } => {
+                if forever {
+                    Command::update_loop(&clinet, api_key, url, interval.unwrap_or(60)).await
+                } else {
+                    Command::update(&clinet, api_key, url).await
+                }
+            }
         }
     }
 
@@ -60,19 +74,33 @@ impl Command {
             .await?;
 
         if public_ips.is_empty() {
-            println!("There is not any public ip");
+            info!("list: There is not any public ip");
         } else {
             for public_ip in public_ips {
                 let updated_at = format_date_time(public_ip.updated_at)?;
 
-                println!(
-                    "{}: ip = {}, updated_at = {}",
+                info!(
+                    "list: name={}, ip={}, updated_at={}",
                     public_ip.name, public_ip.ip, updated_at
                 );
             }
         }
 
         Ok(())
+    }
+
+    async fn update_loop(
+        clinet: &Client,
+        api_key: &str,
+        url: &str,
+        interval: i32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(interval as u64)).await;
+            if let Err(err) = Command::update(&clinet, api_key, url).await {
+                error!("ERROR: {:?}", err);
+            }
+        }
     }
 
     async fn update(
@@ -92,13 +120,10 @@ impl Command {
             Some(prev_writer) => {
                 let updated_at = format_date_time(prev_writer.updated_at)?;
 
-                println!(
-                    "Prev writer: ip = {}, updated_at = {}",
-                    prev_writer.ip, updated_at
-                );
+                info!("update: ip={}, updated_at={}", prev_writer.ip, updated_at);
             }
             None => {
-                println!("There is not a prev writer");
+                info!("update: no_prev_writer");
             }
         }
 
@@ -108,7 +133,7 @@ impl Command {
 
 fn format_date_time(date_time: i64) -> Result<String, Box<dyn std::error::Error>> {
     let date_time = OffsetDateTime::from_unix_timestamp(date_time);
-    let local_offset = UtcOffset::try_local_offset_at(date_time)?;
+    let east8 = UtcOffset::east_hours(8);
 
-    Ok(date_time.to_offset(local_offset).format("%F %T %z"))
+    Ok(date_time.to_offset(east8).format("%F %T %z"))
 }
