@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use log::{error, info};
 use reqwest::Client;
 use structopt::StructOpt;
@@ -5,38 +7,33 @@ use time::{OffsetDateTime, UtcOffset};
 
 use my_public_ip_lib::{PublicIp, Writer};
 
-const VERSION: &str = "0.5.0";
-
-#[derive(Debug, StructOpt)]
-enum Command {
-    Version,
-    List {
-        #[structopt(short, long)]
-        api_key: String,
-        #[structopt(short, long)]
-        url: String,
-    },
-    Update {
-        #[structopt(short, long)]
-        api_key: String,
-        #[structopt(short, long)]
-        url: String,
-    },
-    UpdateForever {
-        #[structopt(short, long)]
-        api_key: String,
-        #[structopt(short, long)]
-        url: String,
-        #[structopt(short, long)]
-        interval: Option<i32>,
-    },
-}
-
 #[derive(Debug, StructOpt)]
 #[structopt(name = "my_public_ip_client", about = "My public ip client")]
 struct Opt {
+    #[structopt(flatten)]
+    args: Args,
+    #[structopt(long, default_value = "10")]
+    timeout: u64,
     #[structopt(subcommand)]
     cmd: Command,
+}
+
+#[derive(Debug, StructOpt)]
+struct Args {
+    #[structopt(long)]
+    api_key: String,
+    #[structopt(long)]
+    url: String,
+}
+
+#[derive(Debug, StructOpt)]
+enum Command {
+    List,
+    Update,
+    UpdateForever {
+        #[structopt(long, default_value = "60")]
+        interval: u64,
+    },
 }
 
 #[tokio::main]
@@ -47,39 +44,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
+        .timeout(Duration::from_secs(opt.timeout))
         .build()
         .expect("build client error");
 
-    opt.cmd.call(&client).await
+    opt.cmd.call(&client, &opt.args).await
 }
 
 impl Command {
-    async fn call(self, client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    async fn call(self, client: &Client, args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         match self {
-            Command::Version => Self::version().await,
-            Command::List { api_key, url } => Command::list(client, &api_key, &url).await,
-            Command::Update { api_key, url } => Command::update(client, &api_key, &url).await,
-            Command::UpdateForever {
-                api_key,
-                url,
-                interval,
-            } => Command::update_loop(client, &api_key, &url, interval.unwrap_or(60)).await,
+            Self::List => Self::list(client, args).await,
+            Self::Update => Self::update(client, args).await,
+            Self::UpdateForever { interval } => {
+                Self::update_forever(client, args, Duration::from_secs(interval)).await
+            }
         }
     }
 
-    async fn version() -> Result<(), Box<dyn std::error::Error>> {
-        println!("VERSION: {}", VERSION);
-        Ok(())
-    }
-
-    async fn list(
-        client: &Client,
-        api_key: &str,
-        url: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn list(client: &Client, args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         let public_ips = client
-            .get(url)
-            .header("APIKEY", api_key)
+            .get(&args.url)
+            .header("APIKEY", &args.api_key)
             .send()
             .await?
             .json::<Vec<PublicIp>>()
@@ -101,28 +87,10 @@ impl Command {
         Ok(())
     }
 
-    async fn update_loop(
-        client: &Client,
-        api_key: &str,
-        url: &str,
-        interval: i32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(interval as u64)).await;
-            if let Err(err) = Command::update(&client, api_key, url).await {
-                error!("ERROR: {:?}", err);
-            }
-        }
-    }
-
-    async fn update(
-        client: &Client,
-        api_key: &str,
-        url: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn update(client: &Client, args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         let prev_writer = client
-            .put(url)
-            .header("APIKEY", api_key)
+            .put(&args.url)
+            .header("APIKEY", &args.api_key)
             .send()
             .await?
             .json::<Option<Writer>>()
@@ -140,6 +108,19 @@ impl Command {
         }
 
         Ok(())
+    }
+
+    async fn update_forever(
+        client: &Client,
+        args: &Args,
+        interval: Duration,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        loop {
+            tokio::time::sleep(interval).await;
+            if let Err(err) = Self::update(&client, args).await {
+                error!("ERROR: {:?}", err);
+            }
+        }
     }
 }
 

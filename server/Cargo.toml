@@ -1,6 +1,6 @@
 [package]
 name = "my_public_ip_server"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Bob <nottxy@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"

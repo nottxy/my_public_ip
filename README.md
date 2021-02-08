@@ -2,11 +2,6 @@
 # Run server
 ```shell
 cargo run -p my_public_ip_server -- \
-  version
-  
-  
-cargo run -p my_public_ip_server -- \
-  run \
   --config-file server/config.toml \
   --db-dir db \
   --log-file server/log4rs.yaml \
@@ -19,24 +14,20 @@ cargo run -p my_public_ip_server -- \
 # Run client
 ```shell
 RUST_LOG=info cargo run -p my_public_ip_client -- \
-  version
-  
-  
-RUST_LOG=info cargo run -p my_public_ip_client -- \
-  list \
   --url=https://127.0.0.1:8998 \
-  --api-key=abcdef
+  --api-key=abcdef \
+  list
 
 
 RUST_LOG=info cargo run -p my_public_ip_client -- \
-  update \
-  --url=https://127.0.0.1:8998 \
-  --api-key=012345
-
-
-RUST_LOG=info cargo run -p my_public_ip_client -- \
-  update-forever \
   --url=https://127.0.0.1:8998 \
   --api-key=012345 \
+  update
+
+
+RUST_LOG=info cargo run -p my_public_ip_client -- \
+  --url=https://127.0.0.1:8998 \
+  --api-key=012345 \
+  update-forever \
   --interval=3
 ```
